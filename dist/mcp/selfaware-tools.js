@@ -86,7 +86,7 @@ function registerSelfawareToolsWithCaller(server, call) {
             return textResult(`Error generating hypotheses: ${err instanceof Error ? err.message : String(err)}`);
         }
     });
-    server.tool('trading_challenge_principle', 'Challenge a trading principle using Advocatus Diaboli: find counter-arguments and edge cases.', { statement: z.string().describe('The principle or statement to challenge') }, async (params) => {
+    server.tool('trading_challenge_principle_sa', 'Challenge a trading principle using Advocatus Diaboli: find counter-arguments and edge cases.', { statement: z.string().describe('The principle or statement to challenge') }, async (params) => {
         try {
             const result = await call('challenge.principle', { statement: params.statement });
             const lines = [`# Challenge: "${params.statement}"`, ''];
