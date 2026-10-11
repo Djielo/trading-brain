@@ -17,4 +17,5 @@ ENV TRADING_BRAIN_DATA_DIR=/data
 
 EXPOSE 7779 7780
 
+ENV MCP_TRANSPORT=sse
 CMD ["node", "dist/index.js", "daemon"]
