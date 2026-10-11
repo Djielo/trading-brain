@@ -1,0 +1,195 @@
+import { PriceFetcher } from './price-fetcher.js';
+import { PortfolioManager } from './portfolio-manager.js';
+import { DecisionEngine } from './decision-engine.js';
+import { calcAllIndicators } from './indicators.js';
+import { getLogger } from '../utils/logger.js';
+export class PaperEngine {
+    config;
+    tradeService;
+    repo;
+    priceFetcher;
+    portfolio;
+    decision;
+    timer = null;
+    cycleCount = 0;
+    lastCycleAt = null;
+    paused = false;
+    running = false;
+    cycleInProgress = false;
+    logger = getLogger();
+    notifier = null;
+    constructor(config, tradeService, signalService, repo) {
+        this.config = config;
+        this.tradeService = tradeService;
+        this.repo = repo;
+        this.priceFetcher = new PriceFetcher(config, repo);
+        this.portfolio = new PortfolioManager(config, repo);
+        this.decision = new DecisionEngine(config, signalService);
+    }
+    start() {
+        if (!this.config.enabled) {
+            this.logger.info('Paper trading engine disabled');
+            return;
+        }
+        this.running = true;
+        this.logger.info(`Paper trading engine started (interval: ${this.config.intervalMs}ms, balance: $${this.config.startingBalance})`);
+        // Initial cycle after 30 seconds
+        setTimeout(() => {
+            if (this.running)
+                this.runCycle().catch(e => this.logger.error('Paper cycle error', { error: String(e) }));
+        }, 30_000);
+        // Regular interval
+        this.timer = setInterval(() => {
+            if (!this.paused && this.running) {
+                this.runCycle().catch(e => this.logger.error('Paper cycle error', { error: String(e) }));
+            }
+        }, this.config.intervalMs);
+    }
+    stop() {
+        this.running = false;
+        if (this.timer) {
+            clearInterval(this.timer);
+            this.timer = null;
+        }
+        this.logger.info('Paper trading engine stopped');
+    }
+    pause() {
+        this.paused = true;
+        this.logger.info('Paper trading engine paused');
+    }
+    resume() {
+        this.paused = false;
+        this.logger.info('Paper trading engine resumed');
+    }
+    isPaused() {
+        return this.paused;
+    }
+    isRunning() {
+        return this.running;
+    }
+    getCycleCount() {
+        return this.cycleCount;
+    }
+    getLastCycleAt() {
+        return this.lastCycleAt;
+    }
+    setNotifier(notifier) {
+        this.notifier = notifier;
+    }
+    async runCycle() {
+        if (this.cycleInProgress) {
+            this.logger.warn('Paper cycle skipped: previous cycle still in progress');
+            return { entries: 0, exits: 0 };
+        }
+        this.cycleInProgress = true;
+        const start = Date.now();
+        let entries = 0;
+        let exits = 0;
+        try {
+            // 1. Fetch prices
+            const prices = await this.priceFetcher.fetchAll();
+            if (prices.size === 0) {
+                this.logger.warn('Paper cycle: no prices available');
+                return { entries: 0, exits: 0 };
+            }
+            // 2. Calculate indicators for all symbols
+            const indicatorMap = new Map();
+            for (const symbol of this.priceFetcher.getAllSymbols()) {
+                const candles = this.priceFetcher.getCandles(symbol);
+                if (candles.length >= 30) {
+                    indicatorMap.set(symbol, calcAllIndicators(candles));
+                }
+            }
+            // 3. Mark-to-market
+            this.portfolio.updatePositionPrices(prices);
+            // 4. Check exits
+            const positions = this.portfolio.getOpenPositions();
+            const exitSignals = this.decision.checkExits(positions, prices);
+            for (const exit of exitSignals) {
+                const closedTrade = this.portfolio.closePosition(exit.position, exit.currentPrice, exit.reason);
+                // Feed to Brain learning pipeline
+                try {
+                    const signals = JSON.parse(closedTrade.signalsJson);
+                    this.tradeService.recordOutcome({
+                        signals: {
+                            rsi14: signals.rsi14,
+                            macd: signals.macd,
+                            trendScore: signals.trendScore,
+                            volatility: signals.volatility,
+                        },
+                        regime: closedTrade.regime,
+                        profitPct: closedTrade.pnlPct,
+                        win: closedTrade.pnlPct > 0,
+                        botType: 'paper_trader',
+                        pair: `${closedTrade.symbol}/USDT`,
+                    });
+                }
+                catch (err) {
+                    this.logger.error(`Failed to record paper trade outcome: ${err}`);
+                }
+                // Notify Brain about closed position
+                this.notifier?.notify('position:closed', {
+                    symbol: closedTrade.symbol,
+                    pnl: closedTrade.pnlUsdt,
+                    pnlPct: closedTrade.pnlPct,
+                    reason: exit.reason,
+                    summary: `${closedTrade.symbol} closed: ${closedTrade.pnlUsdt >= 0 ? '+' : ''}$${closedTrade.pnlUsdt.toFixed(2)} (${closedTrade.pnlPct >= 0 ? '+' : ''}${closedTrade.pnlPct.toFixed(1)}%)`,
+                });
+                exits++;
+            }
+            // 5. Check entries
+            if (this.portfolio.canOpenPosition()) {
+                const openSymbols = new Set(positions.map(p => p.symbol));
+                // Remove closed positions from the set
+                for (const exit of exitSignals) {
+                    openSymbols.delete(exit.position.symbol);
+                }
+                const entrySignals = this.decision.checkEntries(this.priceFetcher.getAllSymbols(), prices, indicatorMap, openSymbols);
+                for (const entry of entrySignals) {
+                    if (!this.portfolio.canOpenPosition())
+                        break;
+                    const positionSize = this.portfolio.calcPositionSize();
+                    const quantity = positionSize / entry.price;
+                    const position = {
+                        symbol: entry.symbol,
+                        side: 'long',
+                        entryPrice: entry.price,
+                        quantity,
+                        usdtAmount: positionSize,
+                        currentPrice: entry.price,
+                        pnlPct: 0,
+                        highWaterMark: entry.price,
+                        signalsJson: entry.signalsJson,
+                        fingerprint: entry.fingerprint,
+                        confidence: entry.confidence,
+                        regime: entry.regime,
+                        openedAt: new Date().toISOString(),
+                    };
+                    this.portfolio.openPosition(position);
+                    // Deduct from balance, compute equity correctly (includes unrealized PnL)
+                    const { balance } = this.portfolio.getBalance();
+                    const newBalance = balance - positionSize;
+                    this.repo.updateBalance(newBalance, this.portfolio.calcEquity(newBalance), 'open_position');
+                    entries++;
+                }
+            }
+            this.cycleCount++;
+            this.lastCycleAt = new Date().toISOString();
+            const elapsed = Date.now() - start;
+            if (entries > 0 || exits > 0) {
+                this.logger.info(`Paper cycle #${this.cycleCount}: ${entries} entries, ${exits} exits (${elapsed}ms)`);
+            }
+            else {
+                this.logger.debug(`Paper cycle #${this.cycleCount}: no trades (${elapsed}ms)`);
+            }
+        }
+        catch (err) {
+            this.logger.error(`Paper cycle error: ${err instanceof Error ? err.message : String(err)}`);
+        }
+        finally {
+            this.cycleInProgress = false;
+        }
+        return { entries, exits };
+    }
+}
+//# sourceMappingURL=paper-engine.js.map

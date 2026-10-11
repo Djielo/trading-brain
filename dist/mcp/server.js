@@ -1,0 +1,61 @@
+import { startMcpServer as coreStartMcpServer } from '@timmeck/brain-core';
+import path from 'node:path';
+import { getCurrentVersion } from '../cli/update-check.js';
+import { registerTools } from './tools.js';
+import { registerResearchTools } from './research-tools.js';
+import { registerAdvancedResearchTools } from './advanced-research-tools.js';
+import { registerDreamTools } from './dream-tools.js';
+import { registerConsciousnessTools } from './consciousness-tools.js';
+import { registerPredictionTools } from './prediction-tools.js';
+import { registerResponderTools } from './responder-tools.js';
+import { registerAttentionTools } from './attention-tools.js';
+import { registerTransferTools } from './transfer-tools.js';
+import { registerNarrativeTools } from './narrative-tools.js';
+import { registerCuriosityTools } from './curiosity-tools.js';
+import { registerEmergenceTools } from './emergence-tools.js';
+import { registerDebateTools } from './debate-tools.js';
+import { registerMetacognitionTools } from './metacognition-tools.js';
+import { registerSelfawareTools } from './selfaware-tools.js';
+import { registerMemoryPalaceTools } from './memory-palace-tools.js';
+import { registerGoalTools } from './goal-tools.js';
+import { registerEvolutionTools } from './evolution-tools.js';
+import { registerReasoningTools } from './reasoning-tools.js';
+import { registerEmotionalTools } from './emotional-tools.js';
+import { registerSelfmodTools } from './selfmod-tools.js';
+import { registerConceptTools } from './concept-tools.js';
+import { registerPeerTools } from './peer-tools.js';
+import { registerLLMTools } from './llm-tools.js';
+export async function startMcpServer() {
+    await coreStartMcpServer({
+        name: 'trading-brain',
+        version: getCurrentVersion(),
+        entryPoint: path.resolve(import.meta.dirname, '../index.ts'),
+        registerTools: (server, ipc) => {
+            registerTools(server, ipc);
+            registerResearchTools(server, ipc);
+            registerAdvancedResearchTools(server, ipc);
+            registerDreamTools(server, ipc);
+            registerConsciousnessTools(server, ipc);
+            registerPredictionTools(server, ipc);
+            registerResponderTools(server, ipc);
+            registerAttentionTools(server, ipc);
+            registerTransferTools(server, ipc);
+            registerNarrativeTools(server, ipc);
+            registerCuriosityTools(server, ipc);
+            registerEmergenceTools(server, ipc);
+            registerDebateTools(server, ipc);
+            registerMetacognitionTools(server, ipc);
+            registerSelfawareTools(server, ipc);
+            registerMemoryPalaceTools(server, ipc);
+            registerGoalTools(server, ipc);
+            registerEvolutionTools(server, ipc);
+            registerReasoningTools(server, ipc);
+            registerEmotionalTools(server, ipc);
+            registerSelfmodTools(server, ipc);
+            registerConceptTools(server, ipc);
+            registerPeerTools(server, ipc);
+            registerLLMTools(server, ipc);
+        },
+    });
+}
+//# sourceMappingURL=server.js.map

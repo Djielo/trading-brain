@@ -1,0 +1,1 @@
+{"version":3,"file":"008_backtest_alerts.js","sourceRoot":"","sources":["../../../src/db/migrations/008_backtest_alerts.ts"],"names":[],"mappings":"AAEA,MAAM,UAAU,EAAE,CAAC,EAAqB;IACtC,iCAAiC;IACjC,EAAE,CAAC,IAAI,CAAC,2DAA2D,CAAC,CAAC;IAErE,eAAe;IACf,EAAE,CAAC,IAAI,CAAC;;;;;;;;;;;;;;GAcP,CAAC,CAAC;IAEH,gBAAgB;IAChB,EAAE,CAAC,IAAI,CAAC;;;;;;;;;GASP,CAAC,CAAC;AACL,CAAC"}

@@ -1,0 +1,38 @@
+export declare class TradingCore {
+    private db;
+    private ipcServer;
+    private apiServer;
+    private mcpHttpServer;
+    private learningEngine;
+    private researchEngine;
+    private paperEngine;
+    private crossBrain;
+    private notifier;
+    private subscriptionManager;
+    private correlator;
+    private orchestrator;
+    private attentionEngine;
+    private transferEngine;
+    private narrativeEngine;
+    private curiosityEngine;
+    private emergenceEngine;
+    private debateEngine;
+    private peerNetwork;
+    private borgSync;
+    private retentionTimer;
+    private config;
+    private configPath?;
+    private restarting;
+    private restartCount;
+    private restartWindowStart;
+    start(configPath?: string): void;
+    private logCrash;
+    private lastVacuumTime;
+    private readonly VACUUM_INTERVAL_MS;
+    private runRetentionCleanup;
+    private cleanup;
+    restart(): void;
+    stop(): void;
+    private setupCrossBrainSubscriptions;
+    private setupEventListeners;
+}
